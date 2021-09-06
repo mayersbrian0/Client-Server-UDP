@@ -7,13 +7,47 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <dirent.h>
 
 #define BUFFER_SIZE 1024
 #define MAX_FILENAME_LENGTH 50
 
+#define FILE_NOT_FOUND(S) { fprintf(stdout, "File %s not found\n", S); }
 
-char* call_ls() {
+//send the contents of given file to the client
+void send_file(FILE* fp, int sockfd, struct sockaddr_in clientaddr) {
+
+}
+
+
+//list the files in current directory and sends to requestor
+void ls(int sockfd, struct sockaddr_in clientaddr, int clientlen) {
+    char ls_buffer[1024];
+    memset(ls_buffer, 0, 1024);
+    int n;
+    size_t bytes_read;
+    struct dirent *de;
+    DIR* dr = opendir(".");
+    if (dr == NULL) { fprintf(stdout, "Could not open current diretory\n"); return;}
     
+    FILE* tmp_fp = fopen("ls_log", "w+");
+    
+    while ((de = readdir(dr)) != NULL) {
+        fprintf(tmp_fp, "%s\n", de->d_name); //write value to a file
+    }
+    free(dr); 
+    
+    fseek(tmp_fp, 0, 0); //go back to the start
+    bytes_read = fread(&ls_buffer, 1, 1024, tmp_fp); //read at most 1024 bytes
+    fclose(tmp_fp);
+    remove("ls_log");
+
+    printf("%s\n", ls_buffer);
+
+    n = sendto(sockfd, ls_buffer, 1024, 0, (struct sockaddr *) &clientaddr, clientlen);
+    if (n < 0) error("(ls) ERROR in function sendto");
+    
+    return;
 }
 
 int main(int argc, char **argv)
@@ -41,11 +75,7 @@ int main(int argc, char **argv)
     if (sockfd < 0)
         error("ERROR opening socket");
 
-    /* setsockopt: Handy debugging trick that lets 
-   * us rerun the server immediately after we kill it; 
-   * otherwise we have to wait about 20 secs. 
-   * Eliminates "ERROR on binding: Address already in use" error. 
-   */
+    //don't have to wait for socket to get cleaned up
     optval = 1;
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                (const void *)&optval, sizeof(int));
@@ -81,22 +111,32 @@ int main(int argc, char **argv)
         //handle possible commands
         char filename[MAX_FILENAME_LENGTH];
         if (strncmp(buf, "get", 3) == 0) {
-            if (sscanf(buf, "get %s", filename) != 1) return;
-            printf("%s\n", filename);
+            if (sscanf(buf, "get %s", filename) == 1) {
+                printf("Filename recieved: %s\n", filename);
+                FILE* fp = fopen(filename, "r");
+                if (fopen == NULL) FILE_NOT_FOUND(filename);
+                send_file(fp,sockfd,clientaddr);
+            }
         }
 
         else if (strncmp(buf, "put", 3) == 0) {
-            if (sscanf(buf, "put %s", filename) != 1) return;
-            printf("%s\n", filename);
+            if (sscanf(buf, "put %s", filename) != 1) {
+
+            }
         }
 
         else if (strncmp(buf, "delete", 6) == 0) {
-            if (sscanf(buf, "delete %s", filename) != 1) return;
-            printf("%s\n", filename);
+            if (sscanf(buf, "delete %s", filename) == 1) {
+                printf("Filename recieved: %s\n", filename);
+                FILE* fp = fopen(filename, "r");
+                if (fopen == NULL) FILE_NOT_FOUND(filename);
+                fclose(fp);
+                remove(filename); //delete the file if it is found
+            }
         }
 
         else if (strncmp(buf, "ls", 2) == 0) {
-            call_ls();
+            ls(sockfd, clientaddr, clientlen); 
         }
 
         else if (strncmp(buf, "exit", 4) == 0) {
