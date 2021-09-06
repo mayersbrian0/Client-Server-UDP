@@ -17,7 +17,7 @@ void error(char *msg) {
 
 //prompt for user
 void prompt() {
-    fprintf(stdout, "\n\nCommand Options: \n------------ \n get [file_name] \n put [file_name] \n delete [file_name]\n>> ls\n>> exit\n------------\n>> ");
+    fprintf(stdout, "\n\nCommand Options: \n------------ \n get [file_name] \n put [file_name] \n delete [file_name]\n ls\n exit\n------------\n>> ");
 }
 
 //store users input
@@ -26,6 +26,7 @@ typedef struct {
     long buffer_size; //number allocated
     ssize_t buffer_length; //number of actual characters
 } INPUT_BUFFER;
+
 
 //allocate space for user input
 INPUT_BUFFER* create_buffer() {
@@ -41,7 +42,7 @@ void free_buffer(INPUT_BUFFER* buff) {
     free(buff);
 }
 
-
+//get and format the input from the user
 void get_input(INPUT_BUFFER* input_buffer) {
     ssize_t bytes_read = getline(&(input_buffer->buffer), &(input_buffer->buffer_size), stdin); //get user input geline, NOTE: getline calls realloc
     if (bytes_read <= 0) { fprintf(stderr, "Error reading input"); exit(0); }
@@ -49,6 +50,7 @@ void get_input(INPUT_BUFFER* input_buffer) {
     input_buffer->buffer_length = bytes_read -1;
     input_buffer->buffer[bytes_read -1] = '\0';
 }
+
 
 int main(int argc, char** argv) {
     int socket_fd, port_num, n;
@@ -81,6 +83,16 @@ int main(int argc, char** argv) {
         prompt();
         get_input(input_buffer);
 
+        //send message
+        server_len = sizeof(serveraddr);
+        n = sendto(socket_fd, input_buffer->buffer, strlen(input_buffer->buffer), 0, &serveraddr, server_len);
+        if (n < 0) error("Error in sendto()");
+
+        n = recvfrom(socket_fd, input_buffer->buffer, strlen(input_buffer->buffer), 0, &serveraddr, &server_len);
+        if (n < 0) error("Error in recvfrom()");
+
     }
     free_buffer(input_buffer);
+
+    return 0;
 }
