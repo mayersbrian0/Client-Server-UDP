@@ -44,7 +44,8 @@ void ls(int sockfd, struct sockaddr_in clientaddr, int clientlen) {
 
     printf("%s\n", ls_buffer);
 
-    n = sendto(sockfd, ls_buffer, 1024, 0, (struct sockaddr *) &clientaddr, clientlen);
+    n = sendto(sockfd, ls_buffer, strlen(ls_buffer), 0, (struct sockaddr *)&clientaddr, clientlen);
+    printf("%d\n", n);
     if (n < 0) error("(ls) ERROR in function sendto");
     
     return;
@@ -59,16 +60,17 @@ int main(int argc, char **argv)
     struct sockaddr_in clientaddr; /* client addr */
     struct hostent *hostp;         /* client host info */
     char buf[BUFFER_SIZE];         /* message buf */
-    char *hostaddrp;               /* dotted decimal host addr string */
+    char *hostaddrp, *ptr;               /* dotted decimal host addr string */
     int optval;                    /* flag value for setsockopt */
     int n;                         /* message byte size */
 
-    if (argc != 2)
-    {
+    if (argc != 2) {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         exit(1);
     }
-    portno = atoi(argv[1]);
+    
+    portno = strtol(argv[1], &ptr, 10);
+    if ( *ptr != '\0') { printf("Please enter a valid port number]n"); exit(0); }
 
     //create parent socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -136,14 +138,16 @@ int main(int argc, char **argv)
         }
 
         else if (strncmp(buf, "ls", 2) == 0) {
-            ls(sockfd, clientaddr, clientlen); 
+            ls(sockfd, clientaddr, clientlen);
         }
 
         else if (strncmp(buf, "exit", 4) == 0) {
         }
 
         else {
-            
+            char * er = "Not Found\n";
+            n = sendto(sockfd, er, strlen(er), 0, (struct sockaddr *) &clientaddr, clientlen);
+            if (n < 0) error("(ls) ERROR in function sendto");
         }
     }
 }

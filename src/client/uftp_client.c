@@ -9,6 +9,7 @@
 
 #define USAGE_ERROR(S) {printf("Usage: %s [IP ADDR] [PORT #]\n", S); exit(0);} //usage error message
 #define BUFFER_SIZE 1024
+#define MAX_COMMAND_LENGTH 35
 
 void error(char *msg) {
     perror(msg);
@@ -22,33 +23,28 @@ void prompt() {
 
 //store users input
 typedef struct {
-    char* buffer;
-    long buffer_size; //number allocated
-    ssize_t buffer_length; //number of actual characters
+    char* command;
+    int size;
 } INPUT_BUFFER;
 
-
-//allocate space for user input
 INPUT_BUFFER* create_buffer() {
-    INPUT_BUFFER* new_buff = malloc(sizeof(INPUT_BUFFER));
-    new_buff->buffer = NULL;
-    new_buff->buffer_size = BUFFER_SIZE;
-    new_buff->buffer_length =0;
+    INPUT_BUFFER* new_buffer = malloc(sizeof(INPUT_BUFFER));
+    new_buffer->size = MAX_COMMAND_LENGTH;
+    new_buffer->command = malloc(new_buffer->size);
 }
 
-//clean up when finished
-void free_buffer(INPUT_BUFFER* buff) {
-    free(buff->buffer);
-    free(buff);
+void free_buffer(INPUT_BUFFER* input_buffer) {
+    free(input_buffer->command);
+    free(input_buffer);
 }
 
 //get and format the input from the user
 void get_input(INPUT_BUFFER* input_buffer) {
-    ssize_t bytes_read = getline(&(input_buffer->buffer), &(input_buffer->buffer_size), stdin); //get user input geline, NOTE: getline calls realloc
-    if (bytes_read <= 0) { printf("Error reading input"); exit(0); }
+    int size = MAX_COMMAND_LENGTH;
 
-    input_buffer->buffer_length = bytes_read -1;
-    input_buffer->buffer[bytes_read -1] = '\0';
+    ssize_t len = getline(&(input_buffer->command), &(input_buffer->size), stdin);
+    if (len == -1) { fprintf(stderr, "Error Reading line\n"); exit(0); }
+
 }
 
 
@@ -58,6 +54,7 @@ int main(int argc, char** argv) {
     struct sockaddr_in serveraddr;
     struct hostent *server;
     char *hostname, *ptr;
+    char input[1024];
 
     if (argc != 3) USAGE_ERROR(argv[0]);
     
@@ -73,29 +70,41 @@ int main(int argc, char** argv) {
     if (server == NULL) { printf("Invalid address: %s\n", argv[1]); exit(0);}
     
     //build ip addr
-    bzero((char *)&serveraddr, sizeof(serveraddr)); 
-    serveraddr.sin_family = AF_INET; 
-    bcopy((char *)server->h_addr_list[0], (char *)&serveraddr.sin_addr.s_addr, server->h_length); 
+    bzero((char *) &serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(port_num);
 
-    INPUT_BUFFER* input_buffer = create_buffer();
+    //INPUT_BUFFER* input_buffer = create_buffer();
+
+    fgets(input, BUFFER_SIZE, stdin);
+    server_len = sizeof(serveraddr);
+    n = sendto(socket_fd, input, strlen(input), 0, &serveraddr, server_len);
+
+    n = recvfrom(socket_fd, input, 1024, 0, &serveraddr, &server_len);
+
+    printf("%s\n", input);
+    /*
     while (1) {
         prompt();
         get_input(input_buffer); 
 
+        
         //send message
         server_len = sizeof(serveraddr);
-        n = sendto(socket_fd, input_buffer->buffer, strlen(input_buffer->buffer), 0, &serveraddr, server_len);
+        n = sendto(socket_fd, input_buffer->command, input_buffer->size, 0, &serveraddr, server_len);
         if (n < 0) error("Error in sendto()");
 
-        char input[1024];
         memset(input, 0, 1024);
         n = recvfrom(socket_fd, input, 1024, 0, &serveraddr, &server_len);
+        printf("%d\n", n);
         if (n < 0) error("Error in recvfrom()");
-        printf("%s\n", input);
 
+        printf("%s\n", input);
+        
     }
-    free_buffer(input_buffer);
+    */
+    //free_buffer(input_buffer);
 
     return 0;
 }
