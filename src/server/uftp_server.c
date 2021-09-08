@@ -92,6 +92,7 @@ int main(int argc, char **argv)
     if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0) error("ERROR on binding");
 
     clientlen = sizeof(clientaddr);
+    
     while (1) {
         //recvfrom: receive a UDP datagram from a client
         bzero(buf, BUFFER_SIZE);
@@ -107,8 +108,8 @@ int main(int argc, char **argv)
         printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
         printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
 
-        n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr, clientlen);
-        if (n < 0) error("ERROR in sendto");
+        //n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr, clientlen);
+        //if (n < 0) error("ERROR in sendto");
 
         //handle possible commands
         char filename[MAX_FILENAME_LENGTH];
@@ -150,4 +151,5 @@ int main(int argc, char **argv)
             if (n < 0) error("(ls) ERROR in function sendto");
         }
     }
+    
 }
