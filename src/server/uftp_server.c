@@ -12,8 +12,6 @@
 #define BUFFER_SIZE 1024
 #define MAX_FILENAME_LENGTH 50
 
-#define FILE_NOT_FOUND(S) { fprintf(stdout, "File %s not found\n", S); }
-
 //send the contents of given file to the client
 void send_file(FILE* fp, int sockfd, struct sockaddr_in clientaddr) {
 
@@ -42,13 +40,44 @@ void ls(int sockfd, struct sockaddr_in clientaddr, int clientlen) {
     fclose(tmp_fp);
     remove("ls_log");
 
-    printf("%s\n", ls_buffer);
-
     n = sendto(sockfd, ls_buffer, strlen(ls_buffer), 0, (struct sockaddr *)&clientaddr, clientlen);
-    printf("%d\n", n);
     if (n < 0) error("(ls) ERROR in function sendto");
     
     return;
+}
+
+//function to handle deleteing a file
+void delete_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char** ret) {
+    int n;
+    printf("Filename recieved: %s\n", filename);
+    FILE* fp = fopen(filename, "r");
+    if (fp == NULL) {
+        printf("File not found: %s\n", filename);
+        memset(ret, 0, strlen(ret));
+        strcpy(ret, "Filename not found: ");
+        strcat(ret, filename);
+        n = sendto(sockfd, ret, strlen(ret), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if (n < 0) error("(delete) ERROR in function sendto");
+    }
+
+    else {
+        printf("File: %s deleted\n", filename);
+        memset(ret, 0, strlen(ret));
+        strcpy(ret, "File deleted");
+        fclose(fp);
+        remove(filename); //delete the file if it is found
+        n = sendto(sockfd, ret, strlen(ret), 0, &clientaddr, clientlen);
+        if (n < 0) error("(delete) ERROR in function sendto");
+    }
+}
+
+//send message on invalid command
+void invalid_command(int sockfd, struct sockaddr_in clientaddr, int clientlen, char** ret) {
+    int n;
+    memset(ret, 0, strlen(ret));
+    strcpy(ret, "Command not found");
+    n = sendto(sockfd, ret, strlen(ret), 0, (struct sockaddr *) &clientaddr, clientlen);
+    if (n < 0) error("(not found) ERROR in function sendto");
 }
 
 int main(int argc, char **argv)
@@ -63,9 +92,10 @@ int main(int argc, char **argv)
     char *hostaddrp, *ptr;               /* dotted decimal host addr string */
     int optval;                    /* flag value for setsockopt */
     int n;                         /* message byte size */
+    char ret[65], filename[MAX_FILENAME_LENGTH]; //used for returning error messages to the client
 
     if (argc != 2) {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        fprintf(stderr, "Usage: %s [PORT #]\n", argv[0]);
         exit(1);
     }
     
@@ -92,6 +122,7 @@ int main(int argc, char **argv)
     if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0) error("ERROR on binding");
 
     clientlen = sizeof(clientaddr);
+    printf("Server listening on port: %s\n", argv[1]);
     
     while (1) {
         //recvfrom: receive a UDP datagram from a client
@@ -105,14 +136,8 @@ int main(int argc, char **argv)
             error("ERROR on gethostbyaddr");
         hostaddrp = inet_ntoa(clientaddr.sin_addr);
         if (hostaddrp == NULL) error("ERROR on inet_ntoa\n");
-        printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
-        printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
-
-        //n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&clientaddr, clientlen);
-        //if (n < 0) error("ERROR in sendto");
 
         //handle possible commands
-        char filename[MAX_FILENAME_LENGTH];
         if (strncmp(buf, "get", 3) == 0) {
             if (sscanf(buf, "get %s", filename) == 1) {
                 printf("Filename recieved: %s\n", filename);
@@ -130,26 +155,23 @@ int main(int argc, char **argv)
 
         else if (strncmp(buf, "delete", 6) == 0) {
             if (sscanf(buf, "delete %s", filename) == 1) {
-                printf("Filename recieved: %s\n", filename);
-                FILE* fp = fopen(filename, "r");
-                if (fopen == NULL) FILE_NOT_FOUND(filename);
-                fclose(fp);
-                remove(filename); //delete the file if it is found
+                delete_file(sockfd, clientaddr, clientlen, filename, ret);
             }
         }
 
         else if (strncmp(buf, "ls", 2) == 0) {
+            printf("ls command requested\n");
             ls(sockfd, clientaddr, clientlen);
         }
 
         else if (strncmp(buf, "exit", 4) == 0) {
+            printf("Server Shutting Down\n");
+            break;
         }
 
         else {
-            char * er = "Not Found\n";
-            n = sendto(sockfd, er, strlen(er), 0, (struct sockaddr *) &clientaddr, clientlen);
-            if (n < 0) error("(ls) ERROR in function sendto");
+            invalid_command(sockfd, clientaddr, clientlen, ret);
         }
     }
-    
+    return 0;
 }

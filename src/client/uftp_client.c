@@ -44,7 +44,6 @@ void get_input(INPUT_BUFFER* input_buffer) {
 
     ssize_t len = getline(&(input_buffer->command), &(input_buffer->size), stdin);
     if (len == -1) { fprintf(stderr, "Error Reading line\n"); exit(0); }
-
 }
 
 
@@ -72,24 +71,14 @@ int main(int argc, char** argv) {
     //build ip addr
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+    bcopy((char *)server->h_addr_list[0], (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(port_num);
 
-    //INPUT_BUFFER* input_buffer = create_buffer();
-
-    fgets(input, BUFFER_SIZE, stdin);
-    server_len = sizeof(serveraddr);
-    n = sendto(socket_fd, input, strlen(input), 0, &serveraddr, server_len);
-
-    n = recvfrom(socket_fd, input, 1024, 0, &serveraddr, &server_len);
-
-    printf("%s\n", input);
-    /*
+    INPUT_BUFFER* input_buffer = create_buffer();
     while (1) {
         prompt();
         get_input(input_buffer); 
 
-        
         //send message
         server_len = sizeof(serveraddr);
         n = sendto(socket_fd, input_buffer->command, input_buffer->size, 0, &serveraddr, server_len);
@@ -97,14 +86,10 @@ int main(int argc, char** argv) {
 
         memset(input, 0, 1024);
         n = recvfrom(socket_fd, input, 1024, 0, &serveraddr, &server_len);
-        printf("%d\n", n);
         if (n < 0) error("Error in recvfrom()");
-
         printf("%s\n", input);
-        
     }
-    */
-    //free_buffer(input_buffer);
+    free_buffer(input_buffer);
 
     return 0;
 }
