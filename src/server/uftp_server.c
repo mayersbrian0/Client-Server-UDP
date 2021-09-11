@@ -11,12 +11,36 @@
 
 #define BUFFER_SIZE 1024
 #define MAX_FILENAME_LENGTH 50
+#define MAX_FILE_LENGTH 5120 //max is 5KB
 
 //send the contents of given file to the client
-void send_file(FILE* fp, int sockfd, struct sockaddr_in clientaddr) {
+void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char* file_buffer) {
+    int n;
+    size_t bytes_read;
 
+    printf("File transfer request: %s\n", filename);
+    FILE* fp = fopen(filename, "r"); 
+    if (fp == NULL) {
+        printf("File not found: %s\n", filename);
+        memset(file_buffer, 0, strlen(file_buffer));
+        strcpy(file_buffer, "Filename not found");
+        n = sendto(sockfd, file_buffer, strlen(file_buffer), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if (n < 0) error("(get) ERROR in function sendto");
+    }
+
+    else {
+        bytes_read = fread(file_buffer, sizeof(char), MAX_FILE_LENGTH, fp); //returns on EOF 
+        file_buffer[bytes_read] = '\0';
+        n = sendto(sockfd, file_buffer, strlen(file_buffer), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if (n < 0) error("(not found) ERROR in function sendto");
+        fclose(fp);
+        printf("File sent: %s\n", filename);
+    }
 }
 
+void receive_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char* file_buffer) {
+
+}
 
 //list the files in current directory and sends to requestor
 void ls(int sockfd, struct sockaddr_in clientaddr, int clientlen) {
@@ -47,7 +71,7 @@ void ls(int sockfd, struct sockaddr_in clientaddr, int clientlen) {
 }
 
 //function to handle deleteing a file
-void delete_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char** ret) {
+void delete_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char* ret) {
     int n;
     printf("Filename recieved: %s\n", filename);
     FILE* fp = fopen(filename, "r");
@@ -72,7 +96,7 @@ void delete_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char*
 }
 
 //send message on invalid command
-void invalid_command(int sockfd, struct sockaddr_in clientaddr, int clientlen, char** ret) {
+void invalid_command(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* ret) {
     int n;
     memset(ret, 0, strlen(ret));
     strcpy(ret, "Command not found");
@@ -92,7 +116,7 @@ int main(int argc, char **argv)
     char *hostaddrp, *ptr;               /* dotted decimal host addr string */
     int optval;                    /* flag value for setsockopt */
     int n;                         /* message byte size */
-    char ret[65], filename[MAX_FILENAME_LENGTH]; //used for returning error messages to the client
+    char ret[65], filename[MAX_FILENAME_LENGTH], file_buffer[MAX_FILE_LENGTH + 1]; //buffers to be used
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s [PORT #]\n", argv[0]);
@@ -103,9 +127,9 @@ int main(int argc, char **argv)
     if ( *ptr != '\0') { printf("Please enter a valid port number]n"); exit(0); }
 
     //create parent socket
+     //create parent socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0)
-        error("ERROR opening socket");
+    if (sockfd < 0) error("ERROR opening socket");
 
     //don't have to wait for socket to get cleaned up
     optval = 1;
@@ -140,16 +164,13 @@ int main(int argc, char **argv)
         //handle possible commands
         if (strncmp(buf, "get", 3) == 0) {
             if (sscanf(buf, "get %s", filename) == 1) {
-                printf("Filename recieved: %s\n", filename);
-                FILE* fp = fopen(filename, "r");
-                if (fopen == NULL) FILE_NOT_FOUND(filename);
-                send_file(fp,sockfd,clientaddr);
+                send_file(sockfd, clientaddr, clientlen, filename, file_buffer);
             }
         }
 
         else if (strncmp(buf, "put", 3) == 0) {
-            if (sscanf(buf, "put %s", filename) != 1) {
-
+            if (sscanf(buf, "put %s", filename) == 1) {
+                
             }
         }
 
@@ -173,5 +194,6 @@ int main(int argc, char **argv)
             invalid_command(sockfd, clientaddr, clientlen, ret);
         }
     }
+
     return 0;
 }

@@ -8,8 +8,10 @@
 #include <netdb.h> 
 
 #define USAGE_ERROR(S) {printf("Usage: %s [IP ADDR] [PORT #]\n", S); exit(0);} //usage error message
-#define BUFFER_SIZE 1024
-#define MAX_COMMAND_LENGTH 35
+#define RET_BUFFER_SIZE 1024 //handle all non-file transfer responses
+#define MAX_COMMAND_LENGTH 60 //max command that we can send
+#define MAX_FILENAME_LENGTH 50
+#define MAX_FILE_LENGTH 6000
 
 void error(char *msg) {
     perror(msg);
@@ -46,14 +48,14 @@ void get_input(INPUT_BUFFER* input_buffer) {
     if (len == -1) { fprintf(stderr, "Error Reading line\n"); exit(0); }
 }
 
-
 int main(int argc, char** argv) {
     int socket_fd, port_num, n;
     int server_len;
     struct sockaddr_in serveraddr;
     struct hostent *server;
     char *hostname, *ptr;
-    char input[1024];
+    char input[1024], filename[MAX_FILENAME_LENGTH];
+    char file_buffer[MAX_FILE_LENGTH + 1]; //buffer to handle sending files
 
     if (argc != 3) USAGE_ERROR(argv[0]);
     
@@ -73,6 +75,7 @@ int main(int argc, char** argv) {
     serveraddr.sin_family = AF_INET;
     bcopy((char *)server->h_addr_list[0], (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(port_num);
+    server_len = sizeof(serveraddr);
 
     INPUT_BUFFER* input_buffer = create_buffer();
     while (1) {
@@ -80,14 +83,41 @@ int main(int argc, char** argv) {
         get_input(input_buffer); 
 
         //send message
-        server_len = sizeof(serveraddr);
         n = sendto(socket_fd, input_buffer->command, input_buffer->size, 0, &serveraddr, server_len);
         if (n < 0) error("Error in sendto()");
 
-        memset(input, 0, 1024);
-        n = recvfrom(socket_fd, input, 1024, 0, &serveraddr, &server_len);
-        if (n < 0) error("Error in recvfrom()");
-        printf("%s\n", input);
+        /*
+            Handle File Transfer differently than ls,exit,delete (different buffer size, different protocal)
+        */
+        if (strncmp("get", input_buffer->command, 3) == 0) {
+            if (sscanf(input_buffer->command,"get %s", filename) == 1) {
+                memset(file_buffer, 0, MAX_FILE_LENGTH);
+                n = recvfrom(socket_fd, file_buffer, MAX_FILE_LENGTH, 0, &serveraddr, &server_len);
+                if (n < 0) error("Error in recvfrom()");
+                if (strncmp("Filename not found", file_buffer, 18) == 0) {
+                    printf("Invalid file name\n");
+                }
+
+                else {
+                    FILE* fp = fopen(filename, "w+"); //copy contents of buffer to new file
+                    fwrite(file_buffer, sizeof(char), strlen(file_buffer), fp); //copy contents into the file
+                    printf("File recieved\n");
+                    fclose(fp);
+                }
+            }
+        }
+
+        else if (strncmp("set", input_buffer->command,3) == 0) {
+
+        }
+
+        //handle ls/delete/exit
+        else { 
+            memset(input, 0, RET_BUFFER_SIZE);
+            n = recvfrom(socket_fd, input, RET_BUFFER_SIZE, 0, &serveraddr, &server_len);
+            if (n < 0) error("Error in recvfrom()");
+            printf("%s\n", input);
+        }
     }
     free_buffer(input_buffer);
 
