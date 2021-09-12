@@ -48,6 +48,7 @@ void get_input(INPUT_BUFFER* input_buffer) {
     if (len == -1) { fprintf(stderr, "Error Reading line\n"); exit(0); }
 }
 
+
 int main(int argc, char** argv) {
     int socket_fd, port_num, n;
     int server_len;
@@ -99,19 +100,48 @@ int main(int argc, char** argv) {
                 }
 
                 else {
-                    FILE* fp = fopen(filename, "w+"); //copy contents of buffer to new file
+                    FILE* fp = fopen(filename, "wb+"); //copy contents of buffer to new file
                     fwrite(file_buffer, sizeof(char), strlen(file_buffer), fp); //copy contents into the file
                     printf("File recieved\n");
                     fclose(fp);
                 }
             }
+
+            else {
+                printf("Invalid command\n");
+            }
         }
 
-        else if (strncmp("set", input_buffer->command,3) == 0) {
+        else if (strncmp("put", input_buffer->command,3) == 0) {
+            if (sscanf(input_buffer->command, "put %s", filename)) {
+                FILE* fp = fopen(filename, "rb");
+                size_t bytes_read;
+                if (fp == NULL) {
+                    printf("File not found: %s\n", filename);
+                }
+                
+                else {
+                    memset(file_buffer, 0, MAX_FILE_LENGTH);
+                    bytes_read = fread(file_buffer, 1, MAX_FILE_LENGTH, fp);
+                    fclose(fp);
+                    n = sendto(socket_fd, file_buffer, bytes_read, 0, &serveraddr, server_len);
+                    if (n < 0) error("Error in sendto()");
+                    printf("Sent file\n");
+                }
+            }
 
+            else {
+                printf("Invalid command\n");
+            }
         }
 
-        //handle ls/delete/exit
+        //break from loop if request client to exit
+        else if (strncmp("exit", input_buffer->command, 4) == 0) {
+            printf("Server exit request sent\nClient now exiting\n");
+            break;
+        }
+
+        //handle ls/delete
         else { 
             memset(input, 0, RET_BUFFER_SIZE);
             n = recvfrom(socket_fd, input, RET_BUFFER_SIZE, 0, &serveraddr, &server_len);

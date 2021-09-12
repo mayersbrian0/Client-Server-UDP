@@ -19,7 +19,7 @@ void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* f
     size_t bytes_read;
 
     printf("File transfer request: %s\n", filename);
-    FILE* fp = fopen(filename, "r"); 
+    FILE* fp = fopen(filename, "rb"); 
     if (fp == NULL) {
         printf("File not found: %s\n", filename);
         memset(file_buffer, 0, strlen(file_buffer));
@@ -29,7 +29,7 @@ void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* f
     }
 
     else {
-        bytes_read = fread(file_buffer, sizeof(char), MAX_FILE_LENGTH, fp); //returns on EOF 
+        bytes_read = fread(file_buffer, sizeof(char), MAX_FILE_LENGTH, fp);
         file_buffer[bytes_read] = '\0';
         n = sendto(sockfd, file_buffer, strlen(file_buffer), 0, (struct sockaddr *) &clientaddr, clientlen);
         if (n < 0) error("(not found) ERROR in function sendto");
@@ -39,7 +39,13 @@ void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* f
 }
 
 void receive_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char* file_buffer) {
-
+    int n;
+    FILE* fp = fopen(filename, "wb+"); //create a new file
+    n = recvfrom(sockfd, file_buffer, MAX_FILE_LENGTH, 0, (struct sockaddr *)&clientaddr, &clientlen);
+    if (n < 0) error("ERROR in recvfrom");
+    fwrite(file_buffer, sizeof(char), strlen(file_buffer), fp); //copy contents into the file
+    printf("File %s added\n", filename);
+    fclose(fp);
 }
 
 //list the files in current directory and sends to requestor
@@ -170,7 +176,7 @@ int main(int argc, char **argv)
 
         else if (strncmp(buf, "put", 3) == 0) {
             if (sscanf(buf, "put %s", filename) == 1) {
-                
+                receive_file(sockfd, clientaddr, clientlen, filename, file_buffer);
             }
         }
 
