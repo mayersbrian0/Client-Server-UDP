@@ -11,7 +11,7 @@
 #define RET_BUFFER_SIZE 1024 //handle all non-file transfer responses
 #define MAX_COMMAND_LENGTH 60 //max command that we can send
 #define MAX_FILENAME_LENGTH 50
-#define MAX_FILE_LENGTH 6000
+#define MAX_FILE_LENGTH 6000000
 
 void error(char *msg) {
     perror(msg);
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     struct hostent *server;
     char *hostname, *ptr;
     char input[1024], filename[MAX_FILENAME_LENGTH];
-    char file_buffer[MAX_FILE_LENGTH + 1]; //buffer to handle sending files
+    unsigned char file_buffer[MAX_FILE_LENGTH + 1]; //buffer to handle sending files
 
     if (argc != 3) USAGE_ERROR(argv[0]);
     
@@ -95,13 +95,14 @@ int main(int argc, char** argv) {
                 memset(file_buffer, 0, MAX_FILE_LENGTH);
                 n = recvfrom(socket_fd, file_buffer, MAX_FILE_LENGTH, 0, &serveraddr, &server_len);
                 if (n < 0) error("Error in recvfrom()");
+                printf("%d\n", n);
                 if (strncmp("Filename not found", file_buffer, 18) == 0) {
                     printf("Invalid file name\n");
                 }
 
                 else {
                     FILE* fp = fopen(filename, "wb+"); //copy contents of buffer to new file
-                    fwrite(file_buffer, sizeof(char), strlen(file_buffer), fp); //copy contents into the file
+                    fwrite(file_buffer, sizeof(char), n, fp); //copy contents into the file
                     printf("File recieved\n");
                     fclose(fp);
                 }

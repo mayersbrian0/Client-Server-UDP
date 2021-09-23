@@ -11,7 +11,7 @@
 
 #define BUFFER_SIZE 1024
 #define MAX_FILENAME_LENGTH 50
-#define MAX_FILE_LENGTH 5120 //max is 5KB
+#define MAX_FILE_LENGTH 600000
 
 //send the contents of given file to the client
 void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* filename, char* file_buffer) {
@@ -19,7 +19,7 @@ void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* f
     size_t bytes_read;
 
     printf("File transfer request: %s\n", filename);
-    FILE* fp = fopen(filename, "rb"); 
+    FILE* fp = fopen(filename, "rb+"); 
     if (fp == NULL) {
         printf("File not found: %s\n", filename);
         memset(file_buffer, 0, strlen(file_buffer));
@@ -30,8 +30,9 @@ void send_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char* f
 
     else {
         bytes_read = fread(file_buffer, sizeof(char), MAX_FILE_LENGTH, fp);
+        printf("%d\n", bytes_read);
         file_buffer[bytes_read] = '\0';
-        n = sendto(sockfd, file_buffer, strlen(file_buffer), 0, (struct sockaddr *) &clientaddr, clientlen);
+        n = sendto(sockfd, file_buffer, bytes_read, 0, (struct sockaddr *) &clientaddr, clientlen);
         if (n < 0) error("(not found) ERROR in function sendto");
         fclose(fp);
         printf("File sent: %s\n", filename);
@@ -43,7 +44,7 @@ void receive_file(int sockfd, struct sockaddr_in clientaddr, int clientlen, char
     FILE* fp = fopen(filename, "wb+"); //create a new file
     n = recvfrom(sockfd, file_buffer, MAX_FILE_LENGTH, 0, (struct sockaddr *)&clientaddr, &clientlen);
     if (n < 0) error("ERROR in recvfrom");
-    fwrite(file_buffer, sizeof(char), strlen(file_buffer), fp); //copy contents into the file
+    fwrite(file_buffer, sizeof(char), n, fp); //copy contents into the file
     printf("File %s added\n", filename);
     fclose(fp);
 }
@@ -122,7 +123,8 @@ int main(int argc, char **argv)
     char *hostaddrp, *ptr;               /* dotted decimal host addr string */
     int optval;                    /* flag value for setsockopt */
     int n;                         /* message byte size */
-    char ret[65], filename[MAX_FILENAME_LENGTH], file_buffer[MAX_FILE_LENGTH + 1]; //buffers to be used
+    char ret[65], filename[MAX_FILENAME_LENGTH];
+    unsigned char file_buffer[MAX_FILE_LENGTH + 1]; //buffers to be used
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s [PORT #]\n", argv[0]);
